@@ -4,12 +4,15 @@ import gearman
 from vagrant import Vagrant
 import logging
 import sys
+import sh
+import re
+import json
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 handler = logging.FileHandler('vagrant-worker.log')
-handler.setLevel(logging.INFO)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
@@ -17,49 +20,95 @@ logger.addHandler(handler)
 class App(Daemon):
     def run(self):
         while True:
-            gm_worker = gearman.GearmanWorker(['localhost'])
-            gm_worker.set_client_id('vagrant-worker-{}'.format(os.getpid()))
-            logger.info('Registering gearman vagrant-worker-{}'
-                        .format(os.getpid()))
-            gm_worker.register_task('start', run)
-            gm_worker.register_task('stop', stop)
-            gm_worker.register_task('status', status)
-            gm_worker.work()
+            for i in range(4):
+                gm_worker = gearman.GearmanWorker(['localhost'])
+                gm_worker.set_client_id('vagrant-worker-{}'
+                                        .format(os.getpid(), i))
+                logger.debug('Registering gearman vagrant-worker-{}'
+                             .format(os.getpid(), i))
+                gm_worker.register_task('start', run)
+                gm_worker.register_task('stop', stop)
+                gm_worker.register_task('status', status)
+                gm_worker.register_task('ip', ip)
+                gm_worker.work()
+
+
+def ip(gearman_worker, gearman_job):
+    path = _get_path(gearman_job)
+    logger.debug('Getting IP from vagrant machine')
+    ip = ''
+
+    try:
+        old_path = os.getcwd()
+        os.chdir(path)
+        ips = sh.vagrant('ssh', '-c', 'ip addr list eth1')
+        search = re.match(r'.* inet (.*)/24 brd', ips.stdout.replace('\n', ''))
+        if search:
+            ip = search.group(1)
+
+        os.chdir(old_path)
+    except:
+        logger.error('Unable to connect to machine to it\'s IP :: {}'
+                     .format(path))
+
+    return ip
 
 
 def run(gearman_worker, gearman_job):
     path = _get_path(gearman_job)
-    logger.info('Bring up {}'.format(path))
+    eth = _get_eth(gearman_job)
+    logger.debug('Bring up {} with eth {}'.format(path, eth))
 
     vagrant = Vagrant(path)
-    vagrant.up()
-    logger.info('Done bring up {}'.format(path))
+    try:
+        os.environ['ETH'] = 'wlan0'
+        vagrant.up()
+    except:
+        logger.error('Failed to bring up machine {}'.format(path),
+                     exc_info=True)
+    logger.debug('Done bring up {}'.format(path))
 
     return _get_status(vagrant)
 
 
 def stop(gearman_worker, gearman_job):
     path = _get_path(gearman_job)
-    logger.info('Bring down {}'.format(path))
+    logger.debug('Bring down {}'.format(path))
 
     vagrant = Vagrant(path)
-    vagrant.halt()
-    logger.info('Done bring down {}'.format(path))
+    try:
+        vagrant.halt()
+    except:
+        logger.error('Failed to shut down machine {}'.format(path),
+                     exc_info=True)
+
+    logger.debug('Done bring down {}'.format(path))
     return _get_status(vagrant)
 
 
 def status(gearman_worker, gearman_job):
     path = _get_path(gearman_job)
-    logger.info('Asking Status for {}'.format(path))
+    logger.debug('Asking Status for {}'.format(path))
 
     vagrant = Vagrant(path)
-    status = _get_status(vagrant)
-    logger.info('Status : {} :: {}'.format(status, path))
+    try:
+        status = _get_status(vagrant)
+    except:
+        logger.error('Failed to get status of the machine {}'.format(path),
+                     exc_info=True)
+
+    logger.debug('Status : {} :: {}'.format(status, path))
     return _get_status(vagrant)
 
 
 def _get_path(gearman_job):
-    return gearman_job.data
+    data = json.loads(gearman_job.data)
+    return data['path']
+
+
+def _get_eth(gearman_job):
+    data = json.loads(gearman_job.data)
+    return data['eth']
 
 
 def _get_status(vagrant):
@@ -69,7 +118,7 @@ def _get_status(vagrant):
 
 if __name__ == '__main__':
     #app = App('/var/run/vagrant-worker.pid'.format(os.getpid()))
-    app = App('vagrant-worker.pid')
+    app = App('pids/vagrant-worker-{}.pid'.format(os.getpid()))
     if len(sys.argv) == 2:
         if 'start' == sys.argv[1]:
             logger.info('Starting vagrant-worker service')
@@ -80,9 +129,12 @@ if __name__ == '__main__':
         elif 'restart' == sys.argv[1]:
             logger.info('Restart vagrant-worker service')
             app.restart()
+        elif 'run' == sys.argv[1]:
+            logger.info('Run debug vagrant-worker service')
+            app.run()
         else:
             print 'Unknown command'
             sys.exit(0)
     else:
-        print 'usage: {} start|stop|restart '.format(sys.argv[0])
+        print 'usage: {} start|stop|restart|run '.format(sys.argv[0])
         sys.exit(2)
