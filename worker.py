@@ -57,11 +57,14 @@ def ip(gearman_worker, gearman_job):
 def run(gearman_worker, gearman_job):
     path = _get_path(gearman_job)
     eth = _get_eth(gearman_job)
-    logger.debug('Bring up {} with eth {}'.format(path, eth))
+    environment = _get_environment(gearman_job)
+    logger.debug('Bring up {} with eth {} and environment set to {}'
+                 .format(path, eth, environment))
 
     vagrant = Vagrant(path)
     try:
-        os.environ['ETH'] = 'wlan0'
+        os.environ['ETH'] = eth
+        os.environ['ENVIRONMENT'] = environment
         vagrant.up()
     except:
         logger.error('Failed to bring up machine {}'.format(path),
@@ -109,6 +112,11 @@ def _get_path(gearman_job):
 def _get_eth(gearman_job):
     data = json.loads(gearman_job.data)
     return data['eth']
+
+
+def _get_environment(gearman_job):
+    data = json.loads(gearman_job.data)
+    return data['environment']
 
 
 def _get_status(vagrant):
