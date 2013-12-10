@@ -37,20 +37,20 @@ def ip(gearman_worker, gearman_job):
     path = _get_path(gearman_job)
     logger.debug('Getting IP from vagrant machine')
     ip = ''
+    old_path = os.getcwd()
+    os.chdir(path)
 
     try:
-        old_path = os.getcwd()
-        os.chdir(path)
         ips = sh.vagrant('ssh', '-c', 'ip addr list eth1')
         search = re.match(r'.* inet (.*)/24 brd', ips.stdout.replace('\n', ''))
         if search:
             ip = search.group(1)
 
-        os.chdir(old_path)
     except:
         logger.error('Unable to connect to machine to it\'s IP :: {}'
                      .format(path))
 
+    os.chdir(old_path)
     return ip
 
 
@@ -121,7 +121,7 @@ def _get_environment(gearman_job):
 
 def _get_status(vagrant):
     statuses = vagrant.status()
-    return ''.join([status + '::' + statuses[status] for status in statuses])
+    return json.dumps(statuses)
 
 
 if __name__ == '__main__':
