@@ -8,9 +8,10 @@ import sh
 import re
 import json
 
+basedir = os.path.abspath(os.path.dirname(__file__))
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-handler = logging.FileHandler('vagrant-worker.log')
+handler = logging.FileHandler('{}/vagrant-worker.log'.format(basedir))
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
 handler.setFormatter(formatter)
@@ -126,7 +127,7 @@ def _get_status(vagrant):
 
 if __name__ == '__main__':
     #app = App('/var/run/vagrant-worker.pid'.format(os.getpid()))
-    app = App('pids/vagrant-worker-{}.pid'.format(os.getpid()))
+    app = App('{}/pids/vagrant-worker-{}.pid'.format(basedir, os.getpid()))
     if len(sys.argv) == 2:
         if 'start' == sys.argv[1]:
             logger.info('Starting vagrant-worker service')
