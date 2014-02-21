@@ -42,10 +42,24 @@ def ip(gearman_worker, gearman_job):
     os.chdir(path)
 
     try:
-        ips = sh.vagrant('ssh', '-c', 'ip addr list eth1')
-        search = re.match(r'.* inet (.*)/24 brd', ips.stdout.replace('\n', ''))
-        if search:
-            ip = search.group(1)
+        machineType = sh.vagrant('status')
+        logger.debug(machineType)
+
+        if 'stopped' not in machineType:
+            if 'virtualbox' in machineType:
+                ips = sh.vagrant('ssh', '-c', 'ip addr list eth1')
+                ips = str(ips)
+                search = re.match(r'.* inet (.*)/24 brd', ips.stdout.replace('\n', ''))
+
+                if search:
+                    ip = search.group(1)
+            elif 'lxc' in machineType:
+                ips = sh.vagrant('ssh-config')
+                ips = str(ips)
+                search = re.findall('HostName (.*)\n', ips, re.M)
+                if search:
+                    ip = search[0]
+                logger.debug(ip)
 
     except:
         logger.error('Unable to connect to machine to it\'s IP :: {}'
@@ -93,16 +107,21 @@ def stop(gearman_worker, gearman_job):
 def status(gearman_worker, gearman_job):
     path = _get_path(gearman_job)
     logger.debug('Asking Status for {}'.format(path))
+    old_path = os.getcwd()
+    os.chdir(path)
 
-    vagrant = Vagrant(path)
     try:
+        vagrant = Vagrant(path)
         status = _get_status(vagrant)
     except:
         logger.error('Failed to get status of the machine {}'.format(path),
                      exc_info=True)
+        os.chdir(old_path)
+        return json.dumps()
 
+    os.chdir(old_path)
     logger.debug('Status : {} :: {}'.format(status, path))
-    return _get_status(vagrant)
+    return status
 
 
 def _get_path(gearman_job):
@@ -121,7 +140,8 @@ def _get_environment(gearman_job):
 
 
 def _get_status(vagrant):
-    statuses = vagrant.status()
+    #statuses = vagrant.status()
+    statuses = str(sh.vagrant('status'))
     return json.dumps(statuses)
 
 
