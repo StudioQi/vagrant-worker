@@ -75,28 +75,38 @@ def run(gearman_worker, gearman_job):
     eth = _get_eth(gearman_job)
     environment = _get_environment(gearman_job)
     provider = _get_provider(gearman_job)
+    old_path = os.getcwd()
 
     logger.debug('Bring up {} with eth {} and environment set to {} with provider {}'
                  .format(path, eth, environment, provider))
 
-    vagrant = Vagrant(path)
     status = _get_status(path)
-    if vagrant.NOT_CREATED not in status and provider not in status:
+    if 'not created' not in status and provider not in status:
         logger.debug('Machine already created with another provider,\
 destroying first')
-        vagrant.destroy()
+        try:
+            os.chdir(path)
+            sh.vagrant('destroy')
+            os.chdir(old_path)
+
+        except:
+            logger.error('Failed to destroy machine {}'.format(path))
+
         logger.debug('Done destroying')
 
     try:
+        os.chdir(path)
         os.environ['ETH'] = eth
         os.environ['ENVIRONMENT'] = environment
-        vagrant.up(True, provider)
+        os.environ['VAGRANT_DEFAULT_PROVIDER'] = provider
+        sh.vagrant('up')
+        os.chdir(old_path)
     except:
         logger.error('Failed to bring up machine {}'.format(path),
                      exc_info=True)
     logger.debug('Done bring up {}'.format(path))
 
-    return json.dumps(_get_status(vagrant))
+    return json.dumps(_get_status(path))
 
 
 def stop(gearman_worker, gearman_job):

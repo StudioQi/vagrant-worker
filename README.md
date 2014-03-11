@@ -1,1 +1,6 @@
-Small project that call all the vagrant filesystem function. If called directly by the webserver, vagrant will reserve the port of the webserver, preventing the web server from restarting. And of course, you don't want that. So we use this daemon to call vagrant. Like this, no port is being bound to vagrant/Virtualbox. It will also make it possible in the long run to support NFS shares.
+# vagrant-worker
+
+A small gearman daemon that can be run in parallel to start, stop, provision and destroy vagrant machines.
+Currently support LXC and VirtualBox as provider. Don't forget to install the [vagrant-lxc](https://github.com/fgrehm/vagrant-lxc) plugin if you need LXC support.
+
+This project is used by [vagrant-control](https://github.com/Pheromone/vagrant-control) to spawn the machines.
