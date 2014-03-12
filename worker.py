@@ -1,42 +1,29 @@
-from daemon import Daemon
-import os
-import gearman
+#-=- encoding: utf-8 -=-
+from rq import Queue, Worker, Connection
+#from rq import get_current_job
+from rq.decorators import job
 from vagrant import Vagrant
+import os
 import logging
 import sys
 import sh
 import re
 import json
+from redis import Redis
+redis_conn = Redis()
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 handler = logging.FileHandler('{}/vagrant-worker.log'.format(basedir))
-formatter = logging.Formatter('%(levelname) -10s %(asctime)s %(module)s:%(lineno)s %(funcName)s %(message)s')
+#formatter = logging.Formatter('%(levelname) -10s %(asctime)s %(module)s:%(lineno)s %(funcName)s %(message)s')
 
-handler.setFormatter(formatter)
+#handler.setFormatter(formatter)
 logger.addHandler(handler)
 
 
-class App(Daemon):
-    def run(self):
-        while True:
-            for i in range(4):
-                gm_worker = gearman.GearmanWorker(['localhost'])
-                gm_worker.set_client_id('vagrant-worker-{}'
-                                        .format(os.getpid(), i))
-                logger.debug('Registering gearman vagrant-worker-{}'
-                             .format(os.getpid(), i))
-                gm_worker.register_task('start', run)
-                gm_worker.register_task('stop', stop)
-                gm_worker.register_task('status', status)
-                gm_worker.register_task('ip', ip)
-                gm_worker.register_task('destroy', destroy)
-                gm_worker.work()
-
-
-def ip(gearman_worker, gearman_job):
-    path = _get_path(gearman_job)
+@job('low', connection=redis_conn, timeout=40)
+def ip(path):
     logger.debug('Getting IP from vagrant machine')
     ip = ''
     old_path = os.getcwd()
@@ -70,11 +57,8 @@ def ip(gearman_worker, gearman_job):
     return ip
 
 
-def run(gearman_worker, gearman_job):
-    path = _get_path(gearman_job)
-    eth = _get_eth(gearman_job)
-    environment = _get_environment(gearman_job)
-    provider = _get_provider(gearman_job)
+@job('high', connection=redis_conn, timeout=600)
+def run(path, eth, environment, provider='lxc'):
     old_path = os.getcwd()
 
     logger.debug('Bring up {} with eth {} and environment set to {} with provider {}'
@@ -109,8 +93,8 @@ destroying first')
     return json.dumps(_get_status(path))
 
 
-def stop(gearman_worker, gearman_job):
-    path = _get_path(gearman_job)
+@job('high', connection=redis_conn, timeout=600)
+def stop(path):
     logger.debug('Bring down {}'.format(path))
 
     vagrant = Vagrant(path)
@@ -124,8 +108,8 @@ def stop(gearman_worker, gearman_job):
     return json.dumps(_get_status(path))
 
 
-def destroy(gearman_worker, gearman_job):
-    path = _get_path(gearman_job)
+@job('high', connection=redis_conn, timeout=600)
+def destroy(path):
     logger.debug('Destroying {}'.format(path))
 
     vagrant = Vagrant(path)
@@ -139,8 +123,8 @@ def destroy(gearman_worker, gearman_job):
     return json.dumps(_get_status(path))
 
 
-def status(gearman_worker, gearman_job):
-    path = _get_path(gearman_job)
+@job('low', connection=redis_conn, timeout=60)
+def status(path):
     logger.debug('Asking Status for {}'.format(path))
     try:
         status = _get_status(path)
@@ -149,28 +133,6 @@ def status(gearman_worker, gearman_job):
 
     logger.debug('Status : {} :: {}'.format(status, path))
     return json.dumps(status)
-
-
-def _get_path(gearman_job):
-    data = json.loads(gearman_job.data)
-    return data['path']
-
-
-def _get_eth(gearman_job):
-    data = json.loads(gearman_job.data)
-    return data['eth']
-
-
-def _get_environment(gearman_job):
-    data = json.loads(gearman_job.data)
-    return data['environment']
-
-
-def _get_provider(gearman_job):
-    data = json.loads(gearman_job.data)
-    if 'provider' in data:
-        return data['provider']
-    return None
 
 
 def _get_status(path):
@@ -185,26 +147,8 @@ def _get_status(path):
     os.chdir(old_path)
     return statuses
 
-
 if __name__ == '__main__':
-    #app = App('/var/run/vagrant-worker.pid'.format(os.getpid()))
-    app = App('{}/pids/vagrant-worker-{}.pid'.format(basedir, os.getpid()))
-    if len(sys.argv) == 2:
-        if 'start' == sys.argv[1]:
-            logger.info('Starting vagrant-worker service')
-            app.start()
-        elif 'stop' == sys.argv[1]:
-            logger.info('Stopping vagrant-worker service')
-            app.stop()
-        elif 'restart' == sys.argv[1]:
-            logger.info('Restart vagrant-worker service')
-            app.restart()
-        elif 'run' == sys.argv[1]:
-            logger.info('Run debug vagrant-worker service')
-            app.run()
-        else:
-            print 'Unknown command'
-            sys.exit(0)
-    else:
-        print 'usage: {} start|stop|restart|run '.format(sys.argv[0])
-        sys.exit(2)
+    # Tell rq what Redis connection to use
+    with Connection():
+        q = map(Queue, sys.argv[1:]) or [Queue()]
+        Worker(q).work()

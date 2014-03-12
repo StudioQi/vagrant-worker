@@ -2,5 +2,8 @@ argparse==1.2.1
 gearman==2.0.2
 ipython==1.1.0
 lockfile==0.9.1
+redis==2.9.1
+rq==0.3.13
+times==0.6.2
 python-vagrant==0.4.0
 wsgiref==0.1.2
