@@ -24,6 +24,7 @@ logger.addHandler(handler)
 
 @job('low', connection=redis_conn, timeout=40)
 def ip(path):
+    os.putenv('HOME', '/root')
     logger.debug('Getting IP from vagrant machine')
     ip = ''
     old_path = os.getcwd()
@@ -60,6 +61,7 @@ def ip(path):
 @job('high', connection=redis_conn, timeout=600)
 def run(path, eth, environment, provider='lxc'):
     old_path = os.getcwd()
+    os.putenv('HOME', '/root')
 
     logger.debug('Bring up {} with eth {} and environment set to {} with provider {}'
                  .format(path, eth, environment, provider))
@@ -95,6 +97,7 @@ destroying first')
 
 @job('high', connection=redis_conn, timeout=600)
 def stop(path):
+    os.putenv('HOME', '/root')
     logger.debug('Bring down {}'.format(path))
 
     vagrant = Vagrant(path)
@@ -125,11 +128,12 @@ def destroy(path):
 
 @job('low', connection=redis_conn, timeout=60)
 def status(path):
+    os.putenv('HOME', '/root')
     logger.debug('Asking Status for {}'.format(path))
     try:
         status = _get_status(path)
     except:
-        return json.dumps()
+        return json.dumps({'msg': 'error getting status'})
 
     logger.debug('Status : {} :: {}'.format(status, path))
     return json.dumps(status)
@@ -148,6 +152,7 @@ def _get_status(path):
     return statuses
 
 if __name__ == '__main__':
+    logger.debug('Env before fork : {}'.format(os.environ))
     # Tell rq what Redis connection to use
     with Connection():
         q = map(Queue, sys.argv[1:]) or [Queue()]
