@@ -1,6 +1,6 @@
-#-=- encoding: utf-8 -=-
+# -=- encoding: utf-8 -=-
 from rq import Queue, Worker, Connection
-#from rq import get_current_job
+# from rq import get_current_job
 from rq.decorators import job
 from vagrant import Vagrant
 import os
@@ -16,9 +16,10 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 handler = logging.FileHandler('{}/vagrant-worker.log'.format(basedir))
-#formatter = logging.Formatter('%(levelname) -10s %(asctime)s %(module)s:%(lineno)s %(funcName)s %(message)s')
+# formatter = logging.Formatter('%(levelname) -10s %(asctime)s\
+#    %(module)s:%(lineno)s %(funcName)s %(message)s')
 
-#handler.setFormatter(formatter)
+# handler.setFormatter(formatter)
 logger.addHandler(handler)
 
 
@@ -38,11 +39,12 @@ def ip(path):
             if 'virtualbox' in machineType:
                 ips = sh.vagrant('ssh', '-c', 'ip addr list eth1')
                 ips = str(ips)
-                search = re.match(r'.* inet (.*)/24 brd', ips.stdout.replace('\n', ''))
+                search = re.match(r'.* inet (.*)/24 brd',
+                                  ips.stdout.replace('\n', ''))
 
                 if search:
                     ip = search.group(1)
-            elif 'lxc' in machineType:
+            elif 'lxc' in machineType or 'vsphere' in machineType:
                 ips = sh.vagrant('ssh-config')
                 ips = str(ips)
                 search = re.findall('HostName (.*)\n', ips, re.M)
@@ -63,7 +65,8 @@ def run(path, eth, environment, provider='lxc'):
     old_path = os.getcwd()
     os.putenv('HOME', '/root')
 
-    logger.debug('Bring up {} with eth {} and environment set to {} with provider {}'
+    logger.debug('Bring up {} with eth {} and\
+                 environment set to {} with provider {}'
                  .format(path, eth, environment, provider))
 
     status = _get_status(path)
@@ -141,6 +144,7 @@ def status(path):
 
 def _get_status(path):
     old_path = os.getcwd()
+    statuses = None
     try:
         os.chdir(path)
         statuses = str(sh.vagrant('status'))
