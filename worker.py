@@ -1,6 +1,6 @@
 # -=- encoding: utf-8 -=-
 from rq import Queue, Worker, Connection
-# from rq import get_current_job
+from rq import get_current_job
 from rq.decorators import job
 from vagrant import Vagrant
 import os
@@ -21,11 +21,16 @@ handler = logging.FileHandler('{}/vagrant-worker.log'.format(basedir))
 
 # handler.setFormatter(formatter)
 logger.addHandler(handler)
+current_job = None
+
+
+def resetEnv():
+    os.putenv('HOME', '/root')
+    os.putenv('VAGRANT_DEFAULT_PROVIDER', 'lxc')
 
 
 @job('low', connection=redis_conn, timeout=40)
 def ip(path):
-    os.putenv('HOME', '/root')
     logger.debug('Getting IP from vagrant machine')
     ip = ''
     old_path = os.getcwd()
@@ -33,7 +38,6 @@ def ip(path):
 
     try:
         machineType = sh.vagrant('status')
-        logger.debug(machineType)
 
         if 'stopped' not in machineType:
             if 'virtualbox' in machineType:
@@ -63,10 +67,10 @@ def ip(path):
 @job('high', connection=redis_conn, timeout=600)
 def run(path, eth, environment, provider='lxc'):
     old_path = os.getcwd()
-    os.putenv('HOME', '/root')
+    resetEnv()
 
     logger.debug('Bring up {} with eth {} and\
-                 environment set to {} with provider {}'
+ environment set to {} with provider {}'
                  .format(path, eth, environment, provider))
 
     status = _get_status(path)
@@ -100,7 +104,7 @@ destroying first')
 
 @job('high', connection=redis_conn, timeout=600)
 def stop(path):
-    os.putenv('HOME', '/root')
+    resetEnv()
     logger.debug('Bring down {}'.format(path))
 
     vagrant = Vagrant(path)
@@ -131,7 +135,7 @@ def destroy(path):
 
 @job('low', connection=redis_conn, timeout=60)
 def status(path):
-    os.putenv('HOME', '/root')
+    resetEnv()
     logger.debug('Asking Status for {}'.format(path))
     try:
         status = _get_status(path)
@@ -146,14 +150,51 @@ def _get_status(path):
     old_path = os.getcwd()
     statuses = None
     try:
+        current_job = get_current_job()
         os.chdir(path)
-        statuses = str(sh.vagrant('status'))
+        logger.debug('-'*20)
+        # statuses = str(sh.vagrant('status', _out=_log_console, _tee=True))
+        _open_console(current_job.id)
+        for line in sh.vagrant('status', _iter=True):
+            _log_console(current_job.id, str(line))
+        _close_console(current_job.id)
+
+        statuses = _read_console(current_job.id)
+        logger.debug(statuses)
     except:
         logger.error('Failed to get status of the machine {}'.format(path),
                      exc_info=True)
 
     os.chdir(old_path)
     return statuses
+
+
+def _open_console(jobId):
+    job_key = '{}:console'.format(jobId)
+    return redis_conn.set(job_key, '#BEGIN#\n')
+
+
+def _read_console(jobId):
+    job_key = '{}:console'.format(jobId)
+    return redis_conn.get(job_key)
+
+
+def _log_console(jobId, line):
+    job_key = '{}:console'.format(jobId)
+    console = redis_conn.get(job_key)
+    if console is None:
+        console = ''
+    redis_conn.set(job_key, console + line)
+
+
+def _close_console(jobId):
+    job_key = '{}:console'.format(jobId)
+    console = redis_conn.get(job_key)
+    if console is None:
+        console = ''
+    logger.debug(console)
+    return redis_conn.set(job_key, console + '\n#END#\n')
+
 
 if __name__ == '__main__':
     logger.debug('Env before fork : {}'.format(os.environ))
