@@ -7,6 +7,11 @@ This project is used by [vagrant-control](https://github.com/Pheromone/vagrant-c
 
 Keep in mind that this project will be completely rewritten when possible to move to python-rq instead of Gearman and a proper handling of daemon. 
 
+## License
+
+[Creative Commons Attribution 3.0 Unported] [2]
+  [2]: https://raw.github.com/Pheromone/vagrant-worker/master/LICENSE.txt
+
 # Note 
 
 Keep in mind that this project is closer to ALPHA than to STABLE. DO NOT use on production system.
