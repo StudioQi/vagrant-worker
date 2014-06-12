@@ -29,6 +29,7 @@ def resetEnv():
     os.putenv('HOME', '/root')
     os.putenv('VAGRANT_DEFAULT_PROVIDER', 'lxc')
     os.putenv('VAGRANT_NO_COLOR', '1')
+    os.putenv('ANSIBLE_NOCOLOR', '1')
 
 
 @job('low', connection=redis_conn, timeout=40)
@@ -112,6 +113,25 @@ def run(path, eth, environment, provider='lxc'):
     # logger.debug('Done bring up {}'.format(path))
     _close_console(current_job.id)
 
+    return json.dumps(_get_status(path))
+
+
+@job('high', connection=redis_conn, timeout=600)
+def provision(path):
+    resetEnv()
+    logger.debug('Running provision on {}'.format(path))
+    old_path = os.getcwd()
+    current_job = get_current_job()
+    try:
+        os.chdir(path)
+        _open_console(current_job.id)
+        for line in sh.vagrant('provision', _iter=True):
+            _log_console(current_job.id, str(line))
+    except:
+        logger.error('Failed to provision machine at {}'.format(path),
+                     exc_info=True)
+    _close_console(current_job.id)
+    os.chdir(old_path)
     return json.dumps(_get_status(path))
 
 
