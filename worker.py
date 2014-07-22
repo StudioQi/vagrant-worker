@@ -117,10 +117,11 @@ def run(path, eth, environment, provider='lxc'):
 
 
 @job('high', connection=redis_conn, timeout=600)
-def provision(path):
+def provision(path, environment):
     resetEnv()
     logger.debug('Running provision on {}'.format(path))
     old_path = os.getcwd()
+    os.environ['ENVIRONMENT'] = environment
     current_job = get_current_job()
     try:
         os.chdir(path)
