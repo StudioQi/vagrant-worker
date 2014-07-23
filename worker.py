@@ -119,9 +119,10 @@ def run(path, eth, environment, provider='lxc'):
 @job('high', connection=redis_conn, timeout=600)
 def provision(path, environment):
     resetEnv()
-    logger.debug('Running provision on {}'.format(path))
+    logger.debug('Running provision on {} with env {}'
+                 .format(path, environment))
     old_path = os.getcwd()
-    os.environ['ENVIRONMENT'] = environment
+    os.putenv('ENVIRONMENT', environment)
     current_job = get_current_job()
     try:
         os.chdir(path)
@@ -236,7 +237,6 @@ def _close_console(jobId):
 
 
 if __name__ == '__main__':
-    logger.debug('Env before fork : {}'.format(os.environ))
     # Tell rq what Redis connection to use
     with Connection():
         q = map(Queue, sys.argv[1:]) or [Queue()]
