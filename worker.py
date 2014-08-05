@@ -1,17 +1,23 @@
 # -=- encoding: utf-8 -=-
+import sys
+from config import VAGRANT_CONTROL_PATH
+sys.path.append(VAGRANT_CONTROL_PATH)
+
 from rq import Queue, Worker, Connection
 from rq import get_current_job
 from rq.decorators import job
 from vagrant import Vagrant
 import os
 import logging
-import sys
 import sh
+from sh import ErrorReturnCode
 import re
 import json
 import time
 from redis import Redis
 redis_conn = Redis()
+
+from vagrantControl.models.host import Host
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 logger = logging.getLogger(__name__)
@@ -28,25 +34,24 @@ current_job = None
 def resetEnv():
     os.putenv('HOME', '/root')
     os.putenv('VAGRANT_DEFAULT_PROVIDER', 'lxc')
-    os.putenv('VAGRANT_NO_COLOR', '1')
-    os.putenv('ANSIBLE_NOCOLOR', '1')
+#    os.putenv('VAGRANT_NO_COLOR', '1')
 
 
 @job('low', connection=redis_conn, timeout=40)
-def ip(path):
+def ip(path, machineName='default'):
     os.putenv('HOME', '/root')
     os.putenv('VAGRANT_NO_COLOR', '1')
-    # logger.debug('Getting IP from vagrant machine')
+    logger.debug('Getting IP from vagrant machine {}'.format(machineName))
     ip = ''
     old_path = os.getcwd()
     os.chdir(path)
 
     try:
-        machineType = sh.vagrant('status')
+        machineType = sh.vagrant('status', machineName)
 
         if 'stopped' not in machineType:
             if 'virtualbox' in machineType:
-                ips = sh.vagrant('ssh', '-c', 'ip addr list eth1')
+                ips = sh.vagrant('ssh', machineName, '-c', 'ip addr list eth1')
                 ips = str(ips)
                 search = re.match(r'.* inet (.*)/24 brd',
                                   ips.stdout.replace('\n', ''))
@@ -54,7 +59,7 @@ def ip(path):
                 if search:
                     ip = search.group(1)
             elif 'lxc' in machineType or 'vsphere' in machineType:
-                ips = sh.vagrant('ssh-config')
+                ips = sh.vagrant('ssh-config', machineName)
                 ips = str(ips)
                 search = re.findall('HostName (.*)\n', ips, re.M)
                 if search:
@@ -70,64 +75,58 @@ def ip(path):
 
 
 @job('high', connection=redis_conn, timeout=600)
-def run(path, eth, environment, provider='lxc'):
+def run(path, environment, host, machineName):
     old_path = os.getcwd()
     resetEnv()
 
-    logger.debug('Bring up {} with eth {} and\
- environment set to {} with provider {}'
-                 .format(path, eth, environment, provider))
     current_job = get_current_job()
     _open_console(current_job.id)
 
-    # logger.debug('Bring up {} with eth {} and\
-    # environment set to {} with provider {}'
-    #                .format(path, eth, environment, provider))
-
     status = _get_status(path)
-    if 'not created' not in status and provider not in status:
-        # logger.debug('Machine already created with another provider,\
-        # destroying first')
+    if 'not created' not in status and host.provider not in status:
         try:
             os.chdir(path)
-            for line in sh.vagrant('destroy', _iter=True):
+            for line in sh.vagrant('destroy', _iter=True, _ok_code=[0, 1, 2]):
                 _log_console(current_job.id, str(line))
             os.chdir(old_path)
 
         except:
             logger.error('Failed to destroy machine {}'.format(path))
 
-        # logger.debug('Done destroying')
-
     try:
         os.chdir(path)
-        os.environ['ETH'] = eth
-        os.environ['ENVIRONMENT'] = environment
-        os.environ['VAGRANT_DEFAULT_PROVIDER'] = provider
-        for line in sh.vagrant('up', _iter=True):
+        os.putenv('ENVIRONMENT', environment)
+        os.putenv('VAGRANT_DEFAULT_PROVIDER', host.provider)
+        for param in host.params.splitlines():
+            if param != '' and '=' in param:
+                key, value = param.split('=')
+                os.putenv(key, value)
+
+        for line in sh.vagrant('up', machineName, _iter=True):
             _log_console(current_job.id, str(line))
         os.chdir(old_path)
-    except:
-        logger.error('Failed to bring up machine {}'.format(path),
-                     exc_info=True)
-    # logger.debug('Done bring up {}'.format(path))
+
+    except ErrorReturnCode, e:
+        for line in e.message.splitlines():
+            _log_console(current_job.id, line)
+
     _close_console(current_job.id)
 
     return json.dumps(_get_status(path))
 
 
 @job('high', connection=redis_conn, timeout=600)
-def provision(path, environment):
+def provision(path, environment, machineName):
     resetEnv()
-    logger.debug('Running provision on {} with env {}'
-                 .format(path, environment))
+    # logger.debug('Running provision on {} with env {}'
+    #            .format(path, environment))
     old_path = os.getcwd()
     os.putenv('ENVIRONMENT', environment)
     current_job = get_current_job()
     try:
         os.chdir(path)
         _open_console(current_job.id)
-        for line in sh.vagrant('provision', _iter=True):
+        for line in sh.vagrant('provision', machineName, _iter=True):
             _log_console(current_job.id, str(line))
     except:
         logger.error('Failed to provision machine at {}'.format(path),
@@ -138,7 +137,7 @@ def provision(path, environment):
 
 
 @job('high', connection=redis_conn, timeout=600)
-def stop(path):
+def stop(path, machineName):
     resetEnv()
     logger.debug('Bring down {}'.format(path))
     # logger.debug('Bring down {}'.format(path))
@@ -147,7 +146,7 @@ def stop(path):
     try:
         os.chdir(path)
         _open_console(current_job.id)
-        for line in sh.vagrant('halt', _iter=True):
+        for line in sh.vagrant('halt', machineName, _iter=True):
             _log_console(current_job.id, str(line))
     except:
         logger.error('Failed to shut down machine {}'.format(path),
@@ -190,15 +189,14 @@ def _get_status(path):
     old_path = os.getcwd()
     statuses = None
     try:
-        # current_job = get_current_job()
+        current_job = get_current_job()
         os.chdir(path)
-        statuses = str(sh.vagrant('status'))
-        # _open_console(current_job.id)
-        # for line in sh.vagrant('status', _iter=True):
-        #     _log_console(current_job.id, str(line))
-        # _close_console(current_job.id)
+        _open_console(current_job.id, private=True)
+        for line in sh.vagrant('status', '--machine-readable', _iter=True):
+            _log_console(current_job.id, str(line), private=True)
+        _close_console(current_job.id, private=True)
 
-        # statuses = _read_console(current_job.id)
+        statuses = _read_console(current_job.id, private=True)
     except:
         logger.error('Failed to get status of the machine {}'.format(path),
                      exc_info=True)
@@ -207,28 +205,44 @@ def _get_status(path):
     return statuses
 
 
-def _open_console(jobId):
-    job_key = '{}:console'.format(jobId)
+def _open_console(jobId, private=False):
+    if private:
+        job_key = '{}:console-private'.format(jobId)
+    else:
+        job_key = '{}:console'.format(jobId)
     return redis_conn.set(job_key, '#BEGIN#\n')
 
 
-def _read_console(jobId):
-    job_key = '{}:console'.format(jobId)
+def _read_console(jobId, private=False):
+    if private:
+        job_key = '{}:console-private'.format(jobId)
+    else:
+        job_key = '{}:console'.format(jobId)
     return redis_conn.get(job_key)
 
 
-def _log_console(jobId, line):
-    job_key = '{}:console'.format(jobId)
+def _log_console(jobId, line, private=False, test=False):
+    if private:
+        job_key = '{}:console-private'.format(jobId)
+    else:
+        job_key = '{}:console'.format(jobId)
+
     console = redis_conn.get(job_key)
     if console is None:
         console = ''
+
+    if test:
+        logger.debug(line)
     redis_conn.set(job_key, console + line)
     expires = int(time.time()) + (5 * 60) + 10
     redis_conn.expireat(job_key, expires)
 
 
-def _close_console(jobId):
-    job_key = '{}:console'.format(jobId)
+def _close_console(jobId, private=False):
+    if private:
+        job_key = '{}:console-private'.format(jobId)
+    else:
+        job_key = '{}:console'.format(jobId)
     console = redis_conn.get(job_key)
     if console is None:
         console = ''
