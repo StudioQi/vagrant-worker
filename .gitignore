@@ -1,3 +1,5 @@
 *.pyc
 *.pid
 *.log
+*.swp
+.ropeproject
