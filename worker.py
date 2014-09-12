@@ -3,6 +3,7 @@ from rq import Queue, Worker, Connection
 from rq import get_current_job
 from rq.decorators import job
 from vagrant import Vagrant
+from sh import git
 import os
 import logging
 import sys
@@ -80,24 +81,24 @@ def run(path, eth, environment, provider='lxc'):
     current_job = get_current_job()
     _open_console(current_job.id)
 
-    # logger.debug('Bring up {} with eth {} and\
-    # environment set to {} with provider {}'
-    #                .format(path, eth, environment, provider))
+    logger.debug('Bring up {} with eth {} and\
+    environment set to {} with provider {}'
+                   .format(path, eth, environment, provider))
 
-    status = _get_status(path)
-    if 'not created' not in status and provider not in status:
-        # logger.debug('Machine already created with another provider,\
-        # destroying first')
-        try:
-            os.chdir(path)
-            for line in sh.vagrant('destroy', _iter=True):
-                _log_console(current_job.id, str(line))
-            os.chdir(old_path)
+   #status = _get_status(path)
+   #if 'not created' not in status and provider not in status:
+   #    # logger.debug('Machine already created with another provider,\
+   #    # destroying first')
+   #    try:
+   #        os.chdir(path)
+   #        for line in sh.vagrant('destroy', _iter=True):
+   #            _log_console(current_job.id, str(line))
+   #        os.chdir(old_path)
 
-        except:
-            logger.error('Failed to destroy machine {}'.format(path))
+   #    except:
+   #        logger.error('Failed to destroy machine {}'.format(path))
 
-        # logger.debug('Done destroying')
+   #    # logger.debug('Done destroying')
 
     try:
         os.chdir(path)
@@ -135,6 +136,41 @@ def provision(path, environment):
     _close_console(current_job.id)
     os.chdir(old_path)
     return json.dumps(_get_status(path))
+
+
+@job('high', connection=redis_conn, timeout=600)
+def clone(path, git_address, git_reference):
+    resetEnv()
+    logger.debug('Cloning {} with git_reference {} at {}'
+                 .format(git_address, git_reference, path))
+    old_path = os.getcwd()
+    try:
+        os.makedirs(path)
+        os.chdir(path)
+
+        git.clone(
+            git_address,
+            '.',
+            '--recursive',
+            '--branch',
+            git_reference,
+            '--depth',
+            1
+        )
+        logger.debug('{} {} {} {} {} {} {}'.format(
+            git_address,
+            '.',
+            '--recursive',
+            '--branch',
+            git_reference,
+            '--depth',
+            1
+        ))
+    except:
+        logger.error('Failed to clone project at {}'.format(path),
+                     exc_info=True)
+
+    os.chdir(old_path)
 
 
 @job('high', connection=redis_conn, timeout=600)
@@ -192,7 +228,7 @@ def _get_status(path):
     try:
         # current_job = get_current_job()
         os.chdir(path)
-        statuses = str(sh.vagrant('status'))
+        statuses = str(sh.vagrant('status', '--machine-readable'))
         # _open_console(current_job.id)
         # for line in sh.vagrant('status', _iter=True):
         #     _log_console(current_job.id, str(line))
