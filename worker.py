@@ -96,14 +96,15 @@ def run(path, environment, host, machineName):
 
     try:
         os.chdir(path)
-        os.putenv('ENVIRONMENT', environment)
-        os.putenv('VAGRANT_DEFAULT_PROVIDER', host.provider)
+        new_env = os.environ.copy()
+        new_env['ENVIRONMENT'] = environment
+        new_env['VAGRANT_DEFAULT_PROVIDER'] = host.provider
         for param in host.params.splitlines():
             if param != '' and '=' in param:
                 key, value = param.split('=')
-                os.putenv(key, value)
+                new_env[key] = value.strip().replace("'", '').replace('"', '')
 
-        for line in sh.vagrant('up', machineName, _iter=True):
+        for line in sh.vagrant('up', machineName, _iter=True, _env=new_env):
             _log_console(current_job.id, str(line))
         os.chdir(old_path)
 
