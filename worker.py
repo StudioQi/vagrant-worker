@@ -32,27 +32,37 @@ logger.addHandler(handler)
 current_job = None
 
 
-def resetEnv():
-    os.putenv('HOME', '/root')
-    os.putenv('VAGRANT_DEFAULT_PROVIDER', 'lxc')
-#    os.putenv('VAGRANT_NO_COLOR', '1')
+def resetEnv(host, environment=None):
+    logger.debug(host.provider)
+    new_env = os.environ.copy()
+    new_env['HOME'] = '/root'
+    new_env['VAGRANT_DEFAULT_PROVIDER'] = host.provider
+    if environment:
+        new_env['ENVIRONMENT'] = environment
+
+    for param in host.params.splitlines():
+        if param != '' and '=' in param:
+            key, value = param.split('=')
+            new_env[key] = value.strip().replace("'", '').replace('"', '')
+
+    return new_env
 
 
 @job('low', connection=redis_conn, timeout=40)
-def ip(path, machineName='default'):
-    os.putenv('HOME', '/root')
-    os.putenv('VAGRANT_NO_COLOR', '1')
+def ip(path, machineName='default', host=None):
     logger.debug('Getting IP from vagrant machine {}'.format(machineName))
+    new_env = resetEnv(host)
     ip = ''
     old_path = os.getcwd()
     os.chdir(path)
 
     try:
-        machineType = sh.vagrant('status', machineName)
+        machineType = sh.vagrant('status', machineName, _env=new_env)
 
         if 'stopped' not in machineType:
             if 'virtualbox' in machineType:
-                ips = sh.vagrant('ssh', machineName, '-c', 'ip addr list eth1')
+                ips = sh.vagrant('ssh', machineName, '-c', 'ip addr list eth1',
+                                 _env=new_env)
                 ips = str(ips)
                 search = re.match(r'.* inet (.*)/24 brd',
                                   ips.stdout.replace('\n', ''))
@@ -60,7 +70,7 @@ def ip(path, machineName='default'):
                 if search:
                     ip = search.group(1)
             elif 'lxc' in machineType or 'vsphere' in machineType:
-                ips = sh.vagrant('ssh-config', machineName)
+                ips = sh.vagrant('ssh-config', machineName, _env=new_env)
                 ips = str(ips)
                 search = re.findall('HostName (.*)\n', ips, re.M)
                 if search:
@@ -78,16 +88,17 @@ def ip(path, machineName='default'):
 @job('high', connection=redis_conn, timeout=600)
 def run(path, environment, host, machineName):
     old_path = os.getcwd()
-    resetEnv()
+    new_env = resetEnv(host)
 
     current_job = get_current_job()
     _open_console(current_job.id)
 
-    status = _get_status(path)
+    status = _get_status(path, host)
     if 'not created' not in status and host.provider not in status:
         try:
             os.chdir(path)
-            for line in sh.vagrant('destroy', _iter=True, _ok_code=[0, 1, 2]):
+            for line in sh.vagrant('destroy', _iter=True, _ok_code=[0, 1, 2],
+                                   _env=new_env):
                 _log_console(current_job.id, str(line))
             os.chdir(old_path)
 
@@ -96,51 +107,46 @@ def run(path, environment, host, machineName):
 
     try:
         os.chdir(path)
-        new_env = os.environ.copy()
-        new_env['ENVIRONMENT'] = environment
-        new_env['VAGRANT_DEFAULT_PROVIDER'] = host.provider
-        for param in host.params.splitlines():
-            if param != '' and '=' in param:
-                key, value = param.split('=')
-                new_env[key] = value.strip().replace("'", '').replace('"', '')
 
         for line in sh.vagrant('up', machineName, _iter=True, _env=new_env):
             _log_console(current_job.id, str(line))
         os.chdir(old_path)
 
     except ErrorReturnCode, e:
+        logger.debug('--------------- Error while doing vagrant up ------------')
         for line in e.message.splitlines():
+            logger.debug(line)
             _log_console(current_job.id, line)
 
     _close_console(current_job.id)
 
-    return json.dumps(_get_status(path))
+    return json.dumps(_get_status(path, host))
 
 
 @job('high', connection=redis_conn, timeout=600)
-def provision(path, environment, machineName):
-    resetEnv()
+def provision(path, environment, machineName, host):
+    new_env = resetEnv(host, environment)
     # logger.debug('Running provision on {} with env {}'
     #            .format(path, environment))
     old_path = os.getcwd()
-    os.putenv('ENVIRONMENT', environment)
     current_job = get_current_job()
     try:
         os.chdir(path)
         _open_console(current_job.id)
-        for line in sh.vagrant('provision', machineName, _iter=True):
+        for line in sh.vagrant('provision', machineName, _iter=True,
+                               _env=new_env):
             _log_console(current_job.id, str(line))
     except:
         logger.error('Failed to provision machine at {}'.format(path),
                      exc_info=True)
     _close_console(current_job.id)
     os.chdir(old_path)
-    return json.dumps(_get_status(path))
+    return json.dumps(_get_status(path, host))
 
 
 @job('high', connection=redis_conn, timeout=600)
-def clone(path, git_address, git_reference):
-    resetEnv()
+def clone(path, git_address, git_reference, host):
+    new_env = resetEnv(host)
     logger.debug('Cloning {} with git_reference {} at {}'
                  .format(git_address, git_reference, path))
     old_path = os.getcwd()
@@ -155,7 +161,8 @@ def clone(path, git_address, git_reference):
             '--branch',
             git_reference,
             '--depth',
-            1
+            1,
+            _env=new_env
         )
         logger.debug('{} {} {} {} {} {} {}'.format(
             git_address,
@@ -174,8 +181,8 @@ def clone(path, git_address, git_reference):
 
 
 @job('high', connection=redis_conn, timeout=600)
-def stop(path, machineName):
-    resetEnv()
+def stop(path, machineName, host=None):
+    new_env = resetEnv(host)
     logger.debug('Bring down {}'.format(path))
     # logger.debug('Bring down {}'.format(path))
     old_path = os.getcwd()
@@ -183,7 +190,7 @@ def stop(path, machineName):
     try:
         os.chdir(path)
         _open_console(current_job.id)
-        for line in sh.vagrant('halt', machineName, _iter=True):
+        for line in sh.vagrant('halt', machineName, _iter=True, _env=new_env):
             _log_console(current_job.id, str(line))
     except:
         logger.error('Failed to shut down machine {}'.format(path),
@@ -192,7 +199,7 @@ def stop(path, machineName):
     _close_console(current_job.id)
     os.chdir(old_path)
     # logger.debug('Done bring down {}'.format(path))
-    return json.dumps(_get_status(path))
+    return json.dumps(_get_status(path, host))
 
 
 @job('high', connection=redis_conn, timeout=600)
@@ -207,14 +214,13 @@ def destroy(path):
                      exc_info=True)
 
     # logger.debug('Done destroying {}'.format(path))
-    return json.dumps(_get_status(path))
+    return json.dumps(_get_status(path, host))
 
 
 @job('low', connection=redis_conn, timeout=60)
-def status(path):
-    resetEnv()
+def status(path, host=None):
     try:
-        status = _get_status(path)
+        status = _get_status(path, host)
     except:
         return json.dumps({'msg': 'error getting status'})
 
@@ -222,14 +228,17 @@ def status(path):
     return json.dumps(status)
 
 
-def _get_status(path):
+def _get_status(path, host):
+    new_env = resetEnv(host)
     old_path = os.getcwd()
     statuses = None
     try:
         current_job = get_current_job()
         os.chdir(path)
         _open_console(current_job.id, private=True)
-        for line in sh.vagrant('status', '--machine-readable', _iter=True):
+        for line in sh.vagrant('status', '--machine-readable',
+                               _iter=True,
+                               _env=new_env):
             _log_console(current_job.id, str(line), private=True)
         _close_console(current_job.id, private=True)
 
