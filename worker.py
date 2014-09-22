@@ -49,7 +49,7 @@ def resetEnv(host, environment=None):
 
 
 @job('low', connection=redis_conn, timeout=40)
-def ip(path, machineName='default', host=None):
+def ip(path, host, machineName='default'):
     logger.debug('Getting IP from vagrant machine {}'.format(machineName))
     new_env = resetEnv(host)
     ip = ''
@@ -181,7 +181,7 @@ def clone(path, git_address, git_reference, host):
 
 
 @job('high', connection=redis_conn, timeout=600)
-def stop(path, machineName, host=None):
+def stop(path, machineName, host):
     new_env = resetEnv(host)
     logger.debug('Bring down {}'.format(path))
     # logger.debug('Bring down {}'.format(path))
@@ -203,9 +203,8 @@ def stop(path, machineName, host=None):
 
 
 @job('high', connection=redis_conn, timeout=600)
-def destroy(path):
-    # logger.debug('Destroying {}'.format(path))
-
+def destroy(path, host):
+    new_env = resetEnv(host)
     vagrant = Vagrant(path)
     try:
         vagrant.destroy()
@@ -213,12 +212,11 @@ def destroy(path):
         logger.error('Failed to destroy machine {}'.format(path),
                      exc_info=True)
 
-    # logger.debug('Done destroying {}'.format(path))
     return json.dumps(_get_status(path, host))
 
 
 @job('low', connection=redis_conn, timeout=60)
-def status(path, host=None):
+def status(path, host):
     try:
         status = _get_status(path, host)
     except:
