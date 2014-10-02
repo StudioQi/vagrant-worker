@@ -32,18 +32,19 @@ logger.addHandler(handler)
 current_job = None
 
 
-def resetEnv(host, environment=None):
-    logger.debug(host.provider)
+def resetEnv(host=None, environment=None):
     new_env = os.environ.copy()
     new_env['HOME'] = '/root'
-    new_env['VAGRANT_DEFAULT_PROVIDER'] = host.provider
+    if host:
+        new_env['VAGRANT_DEFAULT_PROVIDER'] = host.provider
     if environment:
         new_env['ENVIRONMENT'] = environment
 
-    for param in host.params.splitlines():
-        if param != '' and '=' in param:
-            key, value = param.split('=')
-            new_env[key] = value.strip().replace("'", '').replace('"', '')
+    if host:
+        for param in host.params.splitlines():
+            if param != '' and '=' in param:
+                key, value = param.split('=')
+                new_env[key] = value.strip().replace("'", '').replace('"', '')
 
     return new_env
 
@@ -113,7 +114,6 @@ def run(path, environment, host, machineName):
         os.chdir(old_path)
 
     except ErrorReturnCode, e:
-        logger.debug('--------------- Error while doing vagrant up ------------')
         for line in e.message.splitlines():
             logger.debug(line)
             _log_console(current_job.id, line)
@@ -203,7 +203,7 @@ def stop(path, machineName, host=None):
 
 
 @job('high', connection=redis_conn, timeout=600)
-def destroy(path):
+def destroy(path, host):
     # logger.debug('Destroying {}'.format(path))
 
     vagrant = Vagrant(path)
@@ -226,6 +226,23 @@ def status(path, host=None):
 
     # logger.debug('Status : {} :: {}'.format(status, path))
     return json.dumps(status)
+
+
+@job('low', connection=redis_conn, timeout=60)
+def get_git_references(git_address, project_id):
+    resetEnv()
+    os.chdir('/tmp')
+    logger.debug('Getting git ref : git ls-remote {}'
+                 .format(git_address))
+    fullRefs = git('ls-remote', git_address)
+    fullRefs = fullRefs.splitlines()
+
+    ref = [refs.split('\t')[1].replace('refs/', '').replace('heads/', '')
+           for refs in fullRefs]
+
+    ref = [refs for refs in ref if refs != 'HEAD']
+
+    return json.dumps(ref)
 
 
 def _get_status(path, host):
