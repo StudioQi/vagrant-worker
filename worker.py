@@ -50,7 +50,7 @@ def resetEnv(host=None, environment=None):
 
 
 @job('low', connection=redis_conn, timeout=40)
-def ip(path, machineName='default', host=None):
+def ip(path, host, machineName='default'):
     logger.debug('Getting IP from vagrant machine {}'.format(machineName))
     new_env = resetEnv(host)
     ip = ''
@@ -89,7 +89,7 @@ def ip(path, machineName='default', host=None):
 @job('high', connection=redis_conn, timeout=600)
 def run(path, environment, host, machineName):
     old_path = os.getcwd()
-    new_env = resetEnv(host)
+    new_env = resetEnv(host=host, environment=environment)
 
     current_job = get_current_job()
     _open_console(current_job.id)
@@ -97,6 +97,8 @@ def run(path, environment, host, machineName):
     status = _get_status(path, host)
     if 'not created' not in status and host.provider not in status:
         try:
+            logger.debug('Destroying machine {} for provider {}'
+                         .format(path, host.provider))
             os.chdir(path)
             for line in sh.vagrant('destroy', _iter=True, _ok_code=[0, 1, 2],
                                    _env=new_env):
@@ -110,6 +112,7 @@ def run(path, environment, host, machineName):
         os.chdir(path)
 
         for line in sh.vagrant('up', machineName, _iter=True, _env=new_env):
+            logger.debug(line)
             _log_console(current_job.id, str(line))
         os.chdir(old_path)
 
@@ -153,6 +156,7 @@ def clone(path, git_address, git_reference, host):
     try:
         os.makedirs(path)
         os.chdir(path)
+        git_reference = git_reference.replace('tags/', '')
 
         git.clone(
             git_address,
@@ -181,7 +185,7 @@ def clone(path, git_address, git_reference, host):
 
 
 @job('high', connection=redis_conn, timeout=600)
-def stop(path, machineName, host=None):
+def stop(path, machineName, host):
     new_env = resetEnv(host)
     logger.debug('Bring down {}'.format(path))
     # logger.debug('Bring down {}'.format(path))
@@ -204,8 +208,7 @@ def stop(path, machineName, host=None):
 
 @job('high', connection=redis_conn, timeout=600)
 def destroy(path, host):
-    # logger.debug('Destroying {}'.format(path))
-
+    new_env = resetEnv(host)
     vagrant = Vagrant(path)
     try:
         vagrant.destroy()
@@ -213,12 +216,11 @@ def destroy(path, host):
         logger.error('Failed to destroy machine {}'.format(path),
                      exc_info=True)
 
-    # logger.debug('Done destroying {}'.format(path))
     return json.dumps(_get_status(path, host))
 
 
 @job('low', connection=redis_conn, timeout=60)
-def status(path, host=None):
+def status(path, host):
     try:
         status = _get_status(path, host)
     except:
@@ -253,7 +255,7 @@ def _get_status(path, host):
         current_job = get_current_job()
         os.chdir(path)
         _open_console(current_job.id, private=True)
-        for line in sh.vagrant('status', '--machine-readable',
+        for line in sh.vagrant('status', '--machine-readable', '--debug',
                                _iter=True,
                                _env=new_env):
             _log_console(current_job.id, str(line), private=True)
