@@ -6,7 +6,6 @@ sys.path.append(VAGRANT_CONTROL_PATH)
 from rq import Queue, Worker, Connection
 from rq import get_current_job
 from rq.decorators import job
-from vagrant import Vagrant
 from sh import git
 import os
 import logging
@@ -208,10 +207,15 @@ def stop(path, machineName, host):
 
 @job('high', connection=redis_conn, timeout=600)
 def destroy(path, host):
-    new_env = resetEnv(host)
-    vagrant = Vagrant(path)
+    resetEnv(host)
+    old_path = os.getcwd()
     try:
-        vagrant.destroy()
+        if os.path.isdir(path):
+            os.chdir(path)
+            sh.vagrant('destroy')
+            os.chdir(old_path)
+            sh.rm('-rf', path)
+
     except:
         logger.error('Failed to destroy machine {}'.format(path),
                      exc_info=True)
