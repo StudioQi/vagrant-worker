@@ -1,7 +1,7 @@
 # -=- encoding: utf-8 -=-
 import sys
-from config import VAGRANT_CONTROL_PATH
-sys.path.append(VAGRANT_CONTROL_PATH)
+from config import JETO_PATH
+sys.path.append(JETO_PATH)
 
 from rq import Queue, Worker, Connection
 from rq import get_current_job
@@ -17,7 +17,7 @@ import time
 from redis import Redis
 redis_conn = Redis()
 
-from vagrantControl.models.host import Host
+from jeto.models.host import Host
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 logger = logging.getLogger(__name__)

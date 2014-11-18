@@ -1,1 +1,1 @@
-VAGRANT_CONTROL_PATH = '/vagrant/projects/vagrant-control/'
+JETO_PATH = '/home/vagrant/jeto/'
