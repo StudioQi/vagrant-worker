@@ -15,6 +15,8 @@ import re
 import json
 import time
 from redis import Redis
+import requests
+from uuid import uuid4 as uuid
 redis_conn = Redis()
 
 from jeto.models.host import Host
@@ -144,6 +146,51 @@ def provision(path, environment, machineName, host):
     _close_console(current_job.id)
     os.chdir(old_path)
     return json.dumps(_get_status(path, host))
+
+
+@job('high', connection=redis_conn, timeout=600)
+def extract(path, archive_url, host):
+    """Fetch a tgz archive and extract it to the desired path"""
+    # new_env = resetEnv(host)
+    # TODO: check file type
+    types = {
+        'application/zip': sh.unzip,
+        'application/x-tar': lambda f: sh.tar('-xf', f)
+        }
+    import mimetypes
+    filename = os.path.basename(archive_url)
+    file_type = mimetypes.guess_type(archive_url)[0]
+    logger.debug('Extracting {} - {} - {} to {}'
+                 .format(archive_url, filename, file_type, path))
+    old_path = os.getcwd()
+    tmp_file = '/tmp/{}'.format(filename)
+    download = requests.get(archive_url, stream=True)
+    if file_type not in types:
+        return
+    try:
+        os.makedirs(path)
+        os.chdir(path)
+        with open(tmp_file, 'wb') as f:
+            for data in download.iter_content(5120000):
+                f.write(data)
+            f.close()
+        types[file_type](tmp_file)
+        # Ensure the Vagrantfile is in the destination path
+        # ignore the first folder if necessary
+        has_one_folder = os.listdir(path)
+        if len(has_one_folder) == 1:
+            sh.mv(sh.glob(os.path.join(path, has_one_folder[0], '*')),
+                  os.path.join(path, '.'))
+        os.remove(tmp_file)
+        logger.debug('{} {}'.format(
+            archive_url,
+            path
+        ))
+    except:
+        logger.error('Failed to extract project at {}'.format(path),
+                     exc_info=True)
+
+    os.chdir(old_path)
 
 
 @job('high', connection=redis_conn, timeout=600)
