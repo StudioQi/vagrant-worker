@@ -87,7 +87,7 @@ def ip(path, host, machineName='default'):
     return ip
 
 
-@job('high', connection=redis_conn, timeout=600)
+@job('high', connection=redis_conn, timeout=1200)
 def run(path, environment, host, machineName):
     old_path = os.getcwd()
     new_env = resetEnv(host=host, environment=environment)
@@ -127,7 +127,7 @@ def run(path, environment, host, machineName):
     return json.dumps(_get_status(path, host))
 
 
-@job('high', connection=redis_conn, timeout=600)
+@job('high', connection=redis_conn, timeout=1200)
 def provision(path, environment, machineName, host):
     new_env = resetEnv(host, environment)
     # logger.debug('Running provision on {} with env {}'
@@ -148,7 +148,7 @@ def provision(path, environment, machineName, host):
     return json.dumps(_get_status(path, host))
 
 
-@job('high', connection=redis_conn, timeout=600)
+@job('high', connection=redis_conn, timeout=1200)
 def extract(path, archive_url, host):
     """Fetch a tgz archive and extract it to the desired path"""
     # new_env = resetEnv(host)
@@ -193,7 +193,7 @@ def extract(path, archive_url, host):
     os.chdir(old_path)
 
 
-@job('high', connection=redis_conn, timeout=600)
+@job('high', connection=redis_conn, timeout=1200)
 def clone(path, git_address, git_reference, host):
     new_env = resetEnv(host)
     logger.debug('Cloning {} with git_reference {} at {}'
@@ -230,7 +230,7 @@ def clone(path, git_address, git_reference, host):
     os.chdir(old_path)
 
 
-@job('high', connection=redis_conn, timeout=600)
+@job('high', connection=redis_conn, timeout=1200)
 def stop(path, machineName, host):
     new_env = resetEnv(host)
     logger.debug('Bring down {}'.format(path))
@@ -252,7 +252,7 @@ def stop(path, machineName, host):
     return json.dumps(_get_status(path, host))
 
 
-@job('high', connection=redis_conn, timeout=600)
+@job('high', connection=redis_conn, timeout=1200)
 def destroy(path, host):
     resetEnv(host)
     old_path = os.getcwd()
