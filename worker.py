@@ -271,9 +271,9 @@ def destroy(path, host):
 
 
 @job('low', connection=redis_conn, timeout=60)
-def status(path, host):
+def status(path, host, environment):
     try:
-        status = _get_status(path, host)
+        status = _get_status(path, host, environment)
     except:
         return json.dumps({'msg': 'error getting status'})
 
@@ -298,8 +298,8 @@ def get_git_references(git_address, project_id):
     return json.dumps(ref)
 
 
-def _get_status(path, host):
-    new_env = resetEnv(host)
+def _get_status(path, host, environment):
+    new_env = resetEnv(host, environment)
     old_path = os.getcwd()
     statuses = None
     try:
