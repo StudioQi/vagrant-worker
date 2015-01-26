@@ -95,7 +95,7 @@ def run(path, environment, host, machineName):
     current_job = get_current_job()
     _open_console(current_job.id)
 
-    status = _get_status(path, host)
+    status = _get_status(path, host, environment)
     if 'not created' not in status and host.provider not in status:
         try:
             logger.debug('Destroying machine {} for provider {}'
@@ -124,7 +124,7 @@ def run(path, environment, host, machineName):
 
     _close_console(current_job.id)
 
-    return json.dumps(_get_status(path, host))
+    return json.dumps(_get_status(path, host, environment))
 
 
 @job('high', connection=redis_conn, timeout=1200)
@@ -145,7 +145,7 @@ def provision(path, environment, machineName, host):
                      exc_info=True)
     _close_console(current_job.id)
     os.chdir(old_path)
-    return json.dumps(_get_status(path, host))
+    return json.dumps(_get_status(path, host, environment))
 
 
 @job('high', connection=redis_conn, timeout=1200)
@@ -249,7 +249,7 @@ def stop(path, machineName, host):
     _close_console(current_job.id)
     os.chdir(old_path)
     # logger.debug('Done bring down {}'.format(path))
-    return json.dumps(_get_status(path, host))
+    return json.dumps(_get_status(path, host, environment))
 
 
 @job('high', connection=redis_conn, timeout=1200)
@@ -267,7 +267,7 @@ def destroy(path, host):
         logger.error('Failed to destroy machine {}'.format(path),
                      exc_info=True)
 
-    return json.dumps(_get_status(path, host))
+    return json.dumps(_get_status(path, host, environment))
 
 
 @job('low', connection=redis_conn, timeout=60)
