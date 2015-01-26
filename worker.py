@@ -253,8 +253,8 @@ def stop(path, machineName, host):
 
 
 @job('high', connection=redis_conn, timeout=1200)
-def destroy(path, host):
-    resetEnv(host)
+def destroy(path, host, environment):
+    resetEnv(host, environment)
     old_path = os.getcwd()
     try:
         if os.path.isdir(path):
