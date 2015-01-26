@@ -51,7 +51,7 @@ def resetEnv(host=None, environment=None):
 
 
 @job('low', connection=redis_conn, timeout=40)
-def ip(path, host, machineName='default'):
+def ip(path, host, environment, machineName='default'):
     logger.debug('Getting IP from vagrant machine {}'.format(machineName))
     new_env = resetEnv(host)
     ip = ''
