@@ -24,7 +24,7 @@ from jeto.models.host import Host
 basedir = os.path.abspath(os.path.dirname(__file__))
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-handler = logging.FileHandler('{}/vagrant-worker.log'.format(basedir))
+handler = logging.FileHandler('/var/log/vagrant-worker/debug.log'.format(basedir))
 # formatter = logging.Formatter('%(levelname) -10s %(asctime)s\
 #    %(module)s:%(lineno)s %(funcName)s %(message)s')
 
@@ -272,12 +272,24 @@ def destroy(path, host):
 
 @job('low', connection=redis_conn, timeout=60)
 def status(path, host):
+    status = {}
     try:
-        status = _get_status(path, host)
+        status['vagrant'] = _get_status(path, host)
+        # logger.debug(status)
     except:
         return json.dumps({'msg': 'error getting status'})
 
-    # logger.debug('Status : {} :: {}'.format(status, path))
+    try:
+        if os.path.isfile(path + '/jeto.json'):
+            fileHandler = open(path + "/jeto.json")
+            jetoInfos = json.load(fileHandler)
+            fileHandler.close()
+            status['jeto_infos'] = jetoInfos
+        else:
+            status['jeto_infos'] = ''
+    except:
+        return json.dumps(status)
+
     return json.dumps(status)
 
 
