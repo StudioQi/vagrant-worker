@@ -51,7 +51,7 @@ def resetEnv(host=None, environment=None):
 
 
 @job('low', connection=redis_conn, timeout=40)
-def ip(path, host, machineName='default'):
+def ip(path, host, environment, machineName='default'):
     logger.debug('Getting IP from vagrant machine {}'.format(machineName))
     new_env = resetEnv(host)
     ip = ''
@@ -95,7 +95,7 @@ def run(path, environment, host, machineName):
     current_job = get_current_job()
     _open_console(current_job.id)
 
-    status = _get_status(path, host)
+    status = _get_status(path, host, environment)
     if 'not created' not in status and host.provider not in status:
         try:
             logger.debug('Destroying machine {} for provider {}'
@@ -124,7 +124,7 @@ def run(path, environment, host, machineName):
 
     _close_console(current_job.id)
 
-    return json.dumps(_get_status(path, host))
+    return json.dumps(_get_status(path, host, environment))
 
 
 @job('high', connection=redis_conn, timeout=1200)
@@ -145,7 +145,7 @@ def provision(path, environment, machineName, host):
                      exc_info=True)
     _close_console(current_job.id)
     os.chdir(old_path)
-    return json.dumps(_get_status(path, host))
+    return json.dumps(_get_status(path, host, environment))
 
 
 @job('high', connection=redis_conn, timeout=1200)
@@ -249,7 +249,7 @@ def stop(path, machineName, host, environment):
     _close_console(current_job.id)
     os.chdir(old_path)
     # logger.debug('Done bring down {}'.format(path))
-    return json.dumps(_get_status(path, host))
+    return json.dumps(_get_status(path, host, environment))
 
 
 @job('high', connection=redis_conn, timeout=1200)
@@ -267,14 +267,14 @@ def destroy(path, host, environment):
         logger.error('Failed to destroy machine {}'.format(path),
                      exc_info=True)
 
-    return json.dumps(_get_status(path, host))
+    return json.dumps(_get_status(path, host, environment))
 
 
 @job('low', connection=redis_conn, timeout=60)
-def status(path, host):
+def status(path, host, environment):
     status = {}
     try:
-        status['vagrant'] = _get_status(path, host)
+        status['vagrant'] = _get_status(path, host, environment)
         # logger.debug(status)
     except:
         return json.dumps({'msg': 'error getting status'})
@@ -310,8 +310,8 @@ def get_git_references(git_address, project_id):
     return json.dumps(ref)
 
 
-def _get_status(path, host):
-    new_env = resetEnv(host)
+def _get_status(path, host, environment):
+    new_env = resetEnv(host, environment)
     old_path = os.getcwd()
     statuses = None
     try:
