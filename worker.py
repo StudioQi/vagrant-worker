@@ -254,12 +254,12 @@ def stop(path, machineName, host, environment):
 
 @job('high', connection=redis_conn, timeout=1200)
 def destroy(path, host, environment):
-    resetEnv(host, environment)
+    new_env = resetEnv(host, environment)
     old_path = os.getcwd()
     try:
         if os.path.isdir(path):
             os.chdir(path)
-            sh.vagrant('destroy')
+            sh.vagrant('destroy', _env=new_env)
             os.chdir(old_path)
             sh.rm('-rf', path)
 
