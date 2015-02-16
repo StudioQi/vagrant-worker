@@ -272,6 +272,7 @@ def destroy(path, host, environment):
 
 @job('low', connection=redis_conn, timeout=60)
 def status(path, host, environment):
+    status = {}
     try:
         status['vagrant'] = _get_status(path, host, environment)
         # logger.debug(status)
