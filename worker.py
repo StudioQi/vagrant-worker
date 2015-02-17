@@ -112,9 +112,13 @@ def run(path, environment, host, machineName):
     try:
         os.chdir(path)
 
-        for line in sh.vagrant('up', machineName, _iter=True, _env=new_env):
-            logger.debug(line)
-            _log_console(current_job.id, str(line))
+        if machineName != '':
+            for line in sh.vagrant('up', machineName, _iter=True,
+                                   _env=new_env):
+                _log_console(current_job.id, str(line))
+        else:
+            for line in sh.vagrant('up', _iter=True, _env=new_env):
+                _log_console(current_job.id, str(line))
         os.chdir(old_path)
 
     except ErrorReturnCode, e:
@@ -137,9 +141,14 @@ def provision(path, environment, machineName, host):
     try:
         os.chdir(path)
         _open_console(current_job.id)
-        for line in sh.vagrant('provision', machineName, _iter=True,
-                               _env=new_env):
-            _log_console(current_job.id, str(line))
+        if machineName != '':
+            for line in sh.vagrant('provision', machineName, _iter=True,
+                                   _env=new_env):
+                _log_console(current_job.id, str(line))
+        else:
+            for line in sh.vagrant('provision', _iter=True,
+                                   _env=new_env):
+                _log_console(current_job.id, str(line))
     except:
         logger.error('Failed to provision machine at {}'.format(path),
                      exc_info=True)
@@ -240,8 +249,14 @@ def stop(path, machineName, host, environment):
     try:
         os.chdir(path)
         _open_console(current_job.id)
-        for line in sh.vagrant('halt', machineName, _iter=True, _env=new_env):
-            _log_console(current_job.id, str(line))
+        if machineName != '':
+            for line in sh.vagrant('halt', machineName, _iter=True,
+                                   _env=new_env):
+                _log_console(current_job.id, str(line))
+        else:
+            for line in sh.vagrant('halt', _iter=True,
+                                   _env=new_env):
+                _log_console(current_job.id, str(line))
     except:
         logger.error('Failed to shut down machine {}'.format(path),
                      exc_info=True)
