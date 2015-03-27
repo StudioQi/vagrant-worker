@@ -16,7 +16,6 @@ import json
 import time
 from redis import Redis
 import requests
-from uuid import uuid4 as uuid
 redis_conn = Redis()
 
 from jeto.models.host import Host
@@ -24,7 +23,9 @@ from jeto.models.host import Host
 basedir = os.path.abspath(os.path.dirname(__file__))
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-handler = logging.FileHandler('/var/log/vagrant-worker/debug.log'.format(basedir))
+handler = logging.FileHandler(
+    '/var/log/vagrant-worker/debug.log'.format(basedir)
+)
 # formatter = logging.Formatter('%(levelname) -10s %(asctime)s\
 #    %(module)s:%(lineno)s %(funcName)s %(message)s')
 
@@ -243,7 +244,6 @@ def clone(path, git_address, git_reference, host):
 def stop(path, machineName, host, environment):
     new_env = resetEnv(host, environment)
     logger.debug('Bring down {}'.format(path))
-    # logger.debug('Bring down {}'.format(path))
     old_path = os.getcwd()
     current_job = get_current_job()
     try:
@@ -294,16 +294,7 @@ def status(path, host, environment):
     except:
         return json.dumps({'msg': 'error getting status'})
 
-    try:
-        if os.path.isfile(path + '/jeto.json'):
-            fileHandler = open(path + "/jeto.json")
-            jetoInfos = json.load(fileHandler)
-            fileHandler.close()
-            status['jeto_infos'] = jetoInfos
-        else:
-            status['jeto_infos'] = ''
-    except:
-        return json.dumps(status)
+    status['jeto_infos'] = _read_jeto_file(path)
 
     return json.dumps(status)
 
@@ -324,6 +315,34 @@ def get_git_references(git_address, project_id):
 
     return json.dumps(ref)
 
+
+@job('high', connection=redis_conn, timeout=1200)
+def run_script(path, host, script, machineName='default'):
+    new_env = resetEnv(host)
+    old_path = os.getcwd()
+    try:
+        logger.debug('Running script {} on machine {}'.format(script, machineName))
+        jeto_infos = _read_jeto_file(path)
+        all_scripts = jeto_infos.get('scripts')
+        logger.debug(all_scripts)
+        if all_scripts.get(script, None) and\
+                all_scripts.get(script, None).get('command', None):
+            os.chdir(path)
+            current_job = get_current_job()
+            _open_console(current_job.id)
+            _log_console(current_job.id, 'Running {} on machine {}.\n'.format(script, machineName))
+            for line in sh.vagrant('ssh', '-c',
+                                   all_scripts.get(script).get('command'),
+                                   _iter=True,
+                                   _env=new_env):
+                _log_console(current_job.id, str(line))
+            _close_console(current_job.id)
+    except:
+        logger.error('Failed to run script {} of the machine {}'.format(script, path),
+                     exc_info=True)
+
+
+    os.chdir(old_path)
 
 def _get_status(path, host, environment):
     new_env = resetEnv(host, environment)
@@ -391,6 +410,16 @@ def _close_console(jobId, private=False):
         console = ''
     # logger.debug(console)
     return redis_conn.set(job_key, console + '\n#END#\n')
+
+
+def _read_jeto_file(path):
+    if os.path.isfile(path + '/jeto.json'):
+        fileHandler = open(path + "/jeto.json")
+        jetoInfos = json.load(fileHandler)
+        fileHandler.close()
+        return jetoInfos
+    else:
+        return ''
 
 
 if __name__ == '__main__':
