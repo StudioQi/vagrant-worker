@@ -331,10 +331,17 @@ def run_script(path, host, script, machineName='default'):
             current_job = get_current_job()
             _open_console(current_job.id)
             _log_console(current_job.id, 'Running {} on machine {}.\n'.format(script, machineName))
-            for line in sh.vagrant('ssh', '-c',
+            output = sh.vagrant('ssh', '-c',
                                    all_scripts.get(script).get('command'),
                                    _iter=True,
-                                   _env=new_env):
+                                   _env=new_env)
+            if len(output.stdout):
+                _log_console(current_job.id, "\033[0;32m{:*^80}\033[0m\n".format(" Standard output "))
+            for line in output.stdout:
+                _log_console(current_job.id, str(line))
+            if len(output.stderr):
+                _log_console(current_job.id, "\033[0;31m{:*^80}\033[0m\n".format(" Error output "))
+            for line in output.stderr:
                 _log_console(current_job.id, str(line))
             _close_console(current_job.id)
     except:
