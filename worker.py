@@ -88,6 +88,32 @@ def ip(path, host, environment, machineName='default'):
     return ip
 
 
+@job('high', connection=redis_conn, timeout=600)
+def sync(path):
+    new_env = resetEnv()
+    logger.debug('Syncing {}'.format(path))
+    old_path = os.getcwd()
+    current_job = get_current_job()
+    _open_console(current_job.id)
+
+    try:
+        os.chdir(path)
+
+        _log_console(current_job.id, 'Syncing project with Git.\n')
+        for line in git.pull('--depth', 1, _env=new_env):
+            _log_console(current_job.id, str(line))
+
+    except:
+        logger.error(
+            'Failed to sync project at {}'.format(path),
+            exc_info=True
+        )
+
+    _close_console(current_job.id)
+
+    os.chdir(old_path)
+
+
 @job('high', connection=redis_conn, timeout=1200)
 def run(path, environment, host, machineName):
     old_path = os.getcwd()
@@ -321,7 +347,9 @@ def run_script(path, host, script, machineName='default'):
     new_env = resetEnv(host)
     old_path = os.getcwd()
     try:
-        logger.debug('Running script {} on machine {}'.format(script, machineName))
+        logger.debug(
+            'Running script {} on machine {}'.format(script, machineName)
+        )
         jeto_infos = _read_jeto_file(path)
         all_scripts = jeto_infos.get('scripts')
         logger.debug(all_scripts)
@@ -330,7 +358,10 @@ def run_script(path, host, script, machineName='default'):
             os.chdir(path)
             current_job = get_current_job()
             _open_console(current_job.id)
-            _log_console(current_job.id, 'Running {} on machine {}.\n'.format(script, machineName))
+            _log_console(
+                current_job.id,
+                'Running {} on machine {}.\n'.format(script, machineName)
+            )
             for line in sh.vagrant('ssh', '-c',
                                    all_scripts.get(script).get('command'),
                                    _iter=True,
@@ -338,11 +369,13 @@ def run_script(path, host, script, machineName='default'):
                 _log_console(current_job.id, str(line))
             _close_console(current_job.id)
     except:
-        logger.error('Failed to run script {} of the machine {}'.format(script, path),
-                     exc_info=True)
-
+        logger.error(
+            'Failed to run script {} of the machine {}'.format(script, path),
+            exc_info=True
+        )
 
     os.chdir(old_path)
+
 
 def _get_status(path, host, environment):
     new_env = resetEnv(host, environment)

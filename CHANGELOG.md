@@ -1,3 +1,7 @@
+0.3 - June 25 2015
+---
+- Now possible to sync a git project.
+
 0.2.1 - March 27 2015
 ---
 - Adding possibility to run custom scripts on a machine. Comes with permission management on the team + project level
