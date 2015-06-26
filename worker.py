@@ -382,12 +382,20 @@ def run_script(path, host, script, machineName='default'):
                        _err=_l,
                        _ok_code=[0, 1, 2],
                        _env=new_env).wait()
-            _close_console(jobid)
+            _log_console(
+                jobid,
+                '{} is done running on machine {}.\n'.format(
+                    script, machineName))
     except:
         logger.error(
             'Failed to run script {} of the machine {}'.format(script, path),
             exc_info=True
         )
+        _log_console(
+            jobid,
+            'Failed to run script {} of the machine {}.\n'.format(
+                script, machineName))
+    _close_console(jobid)
 
     os.chdir(old_path)
 
@@ -403,6 +411,7 @@ def _get_status(path, host, environment):
         _l = lambda line: _log_console(jobid, str(line), private=True)
         sh.vagrant('status', '--machine-readable', '--debug',
                    _out=_l,
+                   _ok_code=[0, 1, 2],
                    _env=new_env).wait()
         _close_console(jobid, private=True)
 
