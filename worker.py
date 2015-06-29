@@ -10,7 +10,7 @@ from sh import git
 import os
 import logging
 import sh
-from sh import ErrorReturnCode
+from sh import ErrorReturnCode, errno
 import re
 import json
 import time
@@ -386,6 +386,7 @@ def run_script(path, host, script, machineName='default'):
                 jobid,
                 '{} is done running on machine {}.\n'.format(
                     script, machineName))
+            _close_console(current_job.id)
     except:
         logger.error(
             'Failed to run script {} of the machine {}'.format(script, path),
