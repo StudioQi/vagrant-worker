@@ -93,15 +93,15 @@ def sync(path):
     new_env = resetEnv()
     logger.debug('Syncing {}'.format(path))
     old_path = os.getcwd()
-    current_job = get_current_job()
-    _open_console(current_job.id)
+    jobid = get_current_job().id
+    _open_console(jobid)
 
     try:
         os.chdir(path)
 
-        _log_console(current_job.id, 'Syncing project with Git.\n')
-        for line in git.pull('--depth', 1, _env=new_env):
-            _log_console(current_job.id, str(line))
+        _log_console(jobid, 'Syncing project with Git.\n')
+        _l = lambda line: _log_console(jobid, str(line))
+        git.pull('--depth', 1, _out=_l, _err=_l, _env=new_env)
 
     except:
         logger.error(
@@ -109,7 +109,7 @@ def sync(path):
             exc_info=True
         )
 
-    _close_console(current_job.id)
+    _close_console(jobid)
 
     os.chdir(old_path)
 
@@ -119,18 +119,19 @@ def run(path, environment, host, machineName):
     old_path = os.getcwd()
     new_env = resetEnv(host=host, environment=environment)
 
-    current_job = get_current_job()
-    _open_console(current_job.id)
+    jobid = get_current_job().id
+    _open_console(jobid)
 
     status = _get_status(path, host, environment)
+    _l = lambda line: _log_console(jobid, str(line))
     if 'not created' not in status and host.provider not in status:
         try:
             logger.debug('Destroying machine {} for provider {}'
                          .format(path, host.provider))
             os.chdir(path)
-            for line in sh.vagrant('destroy', _iter=True, _ok_code=[0, 1, 2],
-                                   _env=new_env):
-                _log_console(current_job.id, str(line))
+            sh.vagrant('destroy', _ok_code=[0, 1, 2],
+                       _out=_l, _err=_l,
+                       _env=new_env).wait()
             os.chdir(old_path)
 
         except:
@@ -140,20 +141,22 @@ def run(path, environment, host, machineName):
         os.chdir(path)
 
         if machineName != '':
-            for line in sh.vagrant('up', machineName, _iter=True,
-                                   _env=new_env):
-                _log_console(current_job.id, str(line))
+            sh.vagrant('up', machineName,
+                       _ok_code=[0, 1, 2],
+                       _out=_l, _err=_l,
+                       _env=new_env).wait()
         else:
-            for line in sh.vagrant('up', _iter=True, _env=new_env):
-                _log_console(current_job.id, str(line))
+            sh.vagrant('up', _env=new_env,
+                       _ok_code=[0, 1, 2],
+                       _out=_l, _err=_l).wait()
         os.chdir(old_path)
 
     except ErrorReturnCode, e:
         for line in e.message.splitlines():
             logger.debug(line)
-            _log_console(current_job.id, line)
+            _log_console(jobid, line)
 
-    _close_console(current_job.id)
+    _close_console(jobid)
 
     return json.dumps(_get_status(path, host, environment))
 
@@ -164,22 +167,26 @@ def provision(path, environment, machineName, host):
     # logger.debug('Running provision on {} with env {}'
     #            .format(path, environment))
     old_path = os.getcwd()
-    current_job = get_current_job()
+    jobid = get_current_job().id
     try:
         os.chdir(path)
-        _open_console(current_job.id)
+        _open_console(jobid)
         if machineName != '':
-            for line in sh.vagrant('provision', machineName, _iter=True,
-                                   _env=new_env):
-                _log_console(current_job.id, str(line))
+            _l = lambda line: _log_console(jobid, str(line))
+            sh.vagrant('provision', machineName,
+                       _ok_code=[0, 1, 2],
+                       _out=_l, _err=_l,
+                       _env=new_env).wait()
         else:
-            for line in sh.vagrant('provision', _iter=True,
-                                   _env=new_env):
-                _log_console(current_job.id, str(line))
+            _l = lambda line: _log_console(jobid, str(line))
+            sh.vagrant('provision',
+                       _ok_code=[0, 1, 2],
+                       _out=_l, _err=_l,
+                       _env=new_env).wait()
     except:
         logger.error('Failed to provision machine at {}'.format(path),
                      exc_info=True)
-    _close_console(current_job.id)
+    _close_console(jobid)
     os.chdir(old_path)
     return json.dumps(_get_status(path, host, environment))
 
@@ -271,23 +278,27 @@ def stop(path, machineName, host, environment):
     new_env = resetEnv(host, environment)
     logger.debug('Bring down {}'.format(path))
     old_path = os.getcwd()
-    current_job = get_current_job()
+    jobid = get_current_job().id
     try:
         os.chdir(path)
-        _open_console(current_job.id)
+        _open_console(jobid)
         if machineName != '':
-            for line in sh.vagrant('halt', machineName, _iter=True,
-                                   _env=new_env):
-                _log_console(current_job.id, str(line))
+            _l = lambda line: _log_console(jobid, str(line))
+            sh.vagrant('halt', machineName,
+                       _ok_code=[0, 1, 2],
+                       _out=_l, _err=_l,
+                       _env=new_env).wait()
         else:
-            for line in sh.vagrant('halt', _iter=True,
-                                   _env=new_env):
-                _log_console(current_job.id, str(line))
+            _l = lambda line: _log_console(jobid, str(line))
+            sh.vagrant('halt',
+                       _ok_code=[0, 1, 2],
+                       _out=_l, _err=_l,
+                       _env=new_env).wait()
     except:
         logger.error('Failed to shut down machine {}'.format(path),
                      exc_info=True)
 
-    _close_console(current_job.id)
+    _close_console(jobid)
     os.chdir(old_path)
     # logger.debug('Done bring down {}'.format(path))
     return json.dumps(_get_status(path, host, environment))
@@ -356,29 +367,36 @@ def run_script(path, host, script, machineName='default'):
         if all_scripts.get(script, None) and\
                 all_scripts.get(script, None).get('command', None):
             os.chdir(path)
-            current_job = get_current_job()
-            _open_console(current_job.id)
+            jobid = get_current_job().id
+            _open_console(jobid)
             _log_console(
-                current_job.id,
+                jobid,
                 'Running {} on machine {}.\n'.format(script, machineName)
             )
 
-            def send_log(line):
-                if line != errno.EWOULDBLOCK:
-                    _log_console(current_job.id, str(line))
+            _l = lambda line: _log_console(jobid, str(line))
 
             sh.vagrant('ssh', '-c',
                        all_scripts.get(script).get('command'),
-                       _out=send_log,
-                       _err=send_log,
+                       _out=_l,
+                       _err=_l,
                        _ok_code=[0, 1, 2],
                        _env=new_env).wait()
+            _log_console(
+                jobid,
+                '{} is done running on machine {}.\n'.format(
+                    script, machineName))
             _close_console(current_job.id)
     except:
         logger.error(
             'Failed to run script {} of the machine {}'.format(script, path),
             exc_info=True
         )
+        _log_console(
+            jobid,
+            'Failed to run script {} of the machine {}.\n'.format(
+                script, machineName))
+    _close_console(jobid)
 
     os.chdir(old_path)
 
@@ -388,16 +406,17 @@ def _get_status(path, host, environment):
     old_path = os.getcwd()
     statuses = None
     try:
-        current_job = get_current_job()
+        jobid = get_current_job().id
         os.chdir(path)
-        _open_console(current_job.id, private=True)
-        for line in sh.vagrant('status', '--machine-readable', '--debug',
-                               _iter=True,
-                               _env=new_env):
-            _log_console(current_job.id, str(line), private=True)
-        _close_console(current_job.id, private=True)
+        _open_console(jobid, private=True)
+        _l = lambda line: _log_console(jobid, str(line), private=True)
+        sh.vagrant('status', '--machine-readable', '--debug',
+                   _out=_l,
+                   _ok_code=[0, 1, 2],
+                   _env=new_env).wait()
+        _close_console(jobid, private=True)
 
-        statuses = _read_console(current_job.id, private=True)
+        statuses = _read_console(jobid, private=True)
     except:
         logger.error('Failed to get status of the machine {}'.format(path),
                      exc_info=True)
