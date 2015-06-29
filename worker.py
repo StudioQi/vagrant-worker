@@ -10,7 +10,7 @@ from sh import git
 import os
 import logging
 import sh
-from sh import ErrorReturnCode
+from sh import ErrorReturnCode, errno
 import re
 import json
 import time
@@ -362,11 +362,17 @@ def run_script(path, host, script, machineName='default'):
                 current_job.id,
                 'Running {} on machine {}.\n'.format(script, machineName)
             )
-            for line in sh.vagrant('ssh', '-c',
-                                   all_scripts.get(script).get('command'),
-                                   _iter=True,
-                                   _env=new_env):
-                _log_console(current_job.id, str(line))
+
+            def send_log(line):
+                if line != errno.EWOULDBLOCK:
+                    _log_console(current_job.id, str(line))
+
+            sh.vagrant('ssh', '-c',
+                       all_scripts.get(script).get('command'),
+                       _out=send_log,
+                       _err=send_log,
+                       _ok_code=[0, 1, 2],
+                       _env=new_env).wait()
             _close_console(current_job.id)
     except:
         logger.error(
