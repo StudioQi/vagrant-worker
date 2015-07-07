@@ -386,16 +386,17 @@ def run_script(path, host, script, machineName='default'):
                 jobid,
                 '{} is done running on machine {}.\n'.format(
                     script, machineName))
-            _close_console(current_job.id)
+            _close_console(jobid)
     except:
+        e = sys.exc_info()
         logger.error(
             'Failed to run script {} of the machine {}'.format(script, path),
             exc_info=True
         )
         _log_console(
             jobid,
-            'Failed to run script {} of the machine {}.\n'.format(
-                script, machineName))
+            'Failed to run script {} of the machine {}\n Exception: {}.\n'.format(
+                script, machineName, e))
     _close_console(jobid)
 
     os.chdir(old_path)
