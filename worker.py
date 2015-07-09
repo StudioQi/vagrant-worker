@@ -101,7 +101,7 @@ def sync(path):
 
         _log_console(jobid, 'Syncing project with Git.\n')
         _l = lambda line: _log_console(jobid, str(line))
-        git.pull('--depth', 1, _out=_l, _err=_l, _env=new_env)
+        git.pull('--depth', 1, _out=_l, _err=_l, _env=new_env).wait()
 
     except:
         logger.error(
