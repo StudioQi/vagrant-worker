@@ -89,7 +89,7 @@ def ip(path, host, environment, machineName='default'):
 
 
 @job('high', connection=redis_conn, timeout=600)
-def sync(path):
+def sync(path, git_reference):
     new_env = resetEnv()
     logger.debug('Syncing {}'.format(path))
     old_path = os.getcwd()
@@ -101,7 +101,13 @@ def sync(path):
 
         _log_console(jobid, 'Syncing project with Git.\n')
         _l = lambda line: _log_console(jobid, str(line))
-        git.pull('--depth', 1, _out=_l, _err=_l, _env=new_env).wait()
+        git.fetch(_out=_l, _err=_l, _env=new_env).wait()
+        git.reset(
+            '--hard',
+            'origin/{}'.format(git_reference),
+            _out=_l,
+            _err=_l,
+            _env=new_env).wait()
 
     except:
         logger.error(
