@@ -54,7 +54,7 @@ def resetEnv(host=None, environment=None):
 @job('low', connection=redis_conn, timeout=40)
 def ip(path, host, environment, machineName='default'):
     logger.debug('Getting IP from vagrant machine {}'.format(machineName))
-    new_env = resetEnv(host)
+    new_env = resetEnv(host, environment)
     ip = ''
     old_path = os.getcwd()
     os.chdir(path)
@@ -354,8 +354,8 @@ def get_git_references(git_address, project_id):
 
 
 @job('high', connection=redis_conn, timeout=1200)
-def run_script(path, host, script, machineName='default'):
-    new_env = resetEnv(host)
+def run_script(path, host, environment, script, machineName='default'):
+    new_env = resetEnv(host, environment)
     old_path = os.getcwd()
     try:
         logger.debug(
