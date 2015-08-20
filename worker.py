@@ -376,7 +376,7 @@ def run_script(path, host, script, machineName='default'):
 
             _l = lambda line: _log_console(jobid, str(line))
 
-            sh.vagrant('ssh', '-c',
+            sh.vagrant('ssh', machineName, '-c',
                        all_scripts.get(script).get('command'),
                        _out=_l,
                        _err=_l,
