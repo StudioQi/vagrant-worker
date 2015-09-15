@@ -346,7 +346,6 @@ def status(path, host, environment):
 def rsync(path, host):
     new_env = resetEnv(host)
     old_path = os.getcwd()
-    print(host.params)
     os.chdir(path)
     try:
         sh.vagrant('rsync', _env=new_env)
