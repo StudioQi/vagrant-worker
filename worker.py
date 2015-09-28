@@ -342,7 +342,7 @@ def status(path, host, environment):
     return json.dumps(status)
 
 
-@job('low', connection=redis_conn, timeout=60)
+@job('high', connection=redis_conn, timeout=1200)
 def rsync(path, host):
     new_env = resetEnv(host)
     old_path = os.getcwd()
