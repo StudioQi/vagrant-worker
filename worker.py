@@ -313,11 +313,13 @@ def stop(path, machineName, host, environment):
 @job('high', connection=redis_conn, timeout=1200)
 def destroy(path, host, environment):
     new_env = resetEnv(host, environment)
-    old_path = os.getcwd()
+    # old current working dir won't exist after destroy
+    # keep parent's path
+    old_path = os.path.dirname(os.getcwd())
     try:
         if os.path.isdir(path):
             os.chdir(path)
-            sh.vagrant('destroy', _env=new_env)
+            sh.vagrant('destroy', '--force', _env=new_env)
             os.chdir(old_path)
             sh.rm('-rf', path)
 
