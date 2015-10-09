@@ -344,6 +344,19 @@ def status(path, host, environment):
     return json.dumps(status)
 
 
+@job('high', connection=redis_conn, timeout=1200)
+def rsync(path, host):
+    new_env = resetEnv(host)
+    old_path = os.getcwd()
+    os.chdir(path)
+    try:
+        sh.vagrant('rsync', _env=new_env)
+    except:
+        return json.dumps({'msg': 'error trying to run vagrant rsync'})
+    os.chdir(old_path)
+    return json.dumps({'msg': 'rsync done'})
+
+
 @job('low', connection=redis_conn, timeout=60)
 def get_git_references(git_address, project_id):
     resetEnv()
