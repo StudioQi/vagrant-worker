@@ -315,7 +315,8 @@ def destroy(path, host, environment):
     new_env = resetEnv(host, environment)
     # old current working dir won't exist after destroy
     # keep parent's path
-    old_path = os.path.dirname(os.getcwd())
+    old_path = os.path.dirname(
+                    os.path.dirname(os.getcwd()))
     try:
         if os.path.isdir(path):
             os.chdir(path)
