@@ -108,6 +108,16 @@ def sync(path, git_reference):
             _out=_l,
             _err=_l,
             _env=new_env).wait()
+        git.submodule(
+            'sync',
+            _out=_l,
+            _err=_l,
+            _env=new_env).wait()
+        git.submodule(
+            'update',
+            _out=_l,
+            _err=_l,
+            _env=new_env).wait()
 
     except:
         logger.error(
