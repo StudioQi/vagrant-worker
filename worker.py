@@ -356,12 +356,15 @@ def status(path, host, environment):
 
 
 @job('high', connection=redis_conn, timeout=1200)
-def rsync(path, host):
+def rsync(path, host, machineName=None):
     new_env = resetEnv(host)
     old_path = os.getcwd()
     os.chdir(path)
     try:
-        sh.vagrant('rsync', _env=new_env)
+        if machineName is not None:
+            sh.vagrant('rsync', machineName, _env=new_env)
+        else:
+            sh.vagrant('rsync', _env=new_env)
     except:
         return json.dumps({'msg': 'error trying to run vagrant rsync'})
     os.chdir(old_path)
