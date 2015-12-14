@@ -361,10 +361,31 @@ def rsync(path, host, machineName=None):
     old_path = os.getcwd()
     os.chdir(path)
     try:
+        jobid = get_current_job().id
+        _open_console(jobid)
+        _log_console(
+            jobid,
+            'Running rsync on machine {}.\n'.format(machineName)
+        )
+
+        _l = lambda line: _log_console(jobid, str(line))
+
         if machineName is not None:
-            sh.vagrant('rsync', machineName, _env=new_env)
+            sh.vagrant('rsync', machineName,
+                       _out=_l,
+                       _err=_l,
+                       _ok_code=[0, 1, 2],
+                       _env=new_env).wait()
         else:
-            sh.vagrant('rsync', _env=new_env)
+            sh.vagrant('rsync',
+                       _out=_l,
+                       _err=_l,
+                       _ok_code=[0, 1, 2],
+                       _env=new_env).wait()
+        _log_console(
+            jobid,
+            'rsync is done running on machine {}.\n'.format(machineName))
+        _close_console(jobid)
     except:
         return json.dumps({'msg': 'error trying to run vagrant rsync'})
     os.chdir(old_path)
