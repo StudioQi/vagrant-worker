@@ -23,9 +23,10 @@ from jeto.models.host import Host
 basedir = os.path.abspath(os.path.dirname(__file__))
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-handler = logging.FileHandler(
-    '/var/log/vagrant-worker/debug.log'.format(basedir)
-)
+LOGS = os.environ.get('LOGS',
+                      '/var/log/vagrant-worker/debug.log'.format(
+                          basedir))
+handler = logging.FileHandler(LOGS)
 # formatter = logging.Formatter('%(levelname) -10s %(asctime)s\
 #    %(module)s:%(lineno)s %(funcName)s %(message)s')
 

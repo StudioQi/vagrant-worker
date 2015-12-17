@@ -9,3 +9,4 @@ python-vagrant==0.4.0
 wsgiref==0.1.2
 requests
 uuid
+jeto==0.5.2
