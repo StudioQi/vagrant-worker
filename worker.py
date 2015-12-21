@@ -356,8 +356,8 @@ def status(path, host, environment):
 
 
 @job('high', connection=redis_conn, timeout=1200)
-def rsync(path, host, machineName=None):
-    new_env = resetEnv(host)
+def rsync(path, host, environment, machineName=None):
+    new_env = resetEnv(host, environment)
     old_path = os.getcwd()
     os.chdir(path)
     try:
