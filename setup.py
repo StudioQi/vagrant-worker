@@ -15,6 +15,6 @@ setup(
     url='https://jeto.io',
     packages=['vagrant_worker'],
     data_files=[
-        ('bin', ['worker.py']),
+        ('bin', ['vagrant_worker/worker.py']),
     ],
 )
