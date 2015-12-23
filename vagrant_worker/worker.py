@@ -1,7 +1,10 @@
 # -=- encoding: utf-8 -=-
 import sys
-from config import JETO_PATH
-sys.path.append(JETO_PATH)
+try: 
+    from config import JETO_PATH
+    sys.path.append(JETO_PATH)
+except:
+    pass
 
 from rq import Queue, Worker, Connection
 from rq import get_current_job
