@@ -1,4 +1,7 @@
-# -=- encoding: utf-8 -=-
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+# vim:fenc=utf-8
+
 import sys
 try: 
     from config import JETO_PATH
