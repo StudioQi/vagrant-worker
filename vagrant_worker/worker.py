@@ -43,7 +43,6 @@ current_job = None
 
 def resetEnv(host=None, environment=None):
     new_env = os.environ.copy()
-    new_env['HOME'] = '/root'
     if host:
         new_env['VAGRANT_DEFAULT_PROVIDER'] = host.provider
     if environment:
